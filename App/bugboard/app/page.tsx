@@ -1,6 +1,5 @@
 'use client';
 import { useState } from "react";
-import { checkLoginInfo } from "./actions";
 import Dashboard from "./dashboard";
 
 import bugboard from './img/bugboard.png';
@@ -17,16 +16,24 @@ export default function Home() {
   //quando submitto il form, controlla le info di login e agisci in base al risultato
   const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
+    //chiamata endpoint login
     try {
-      const user = await checkLoginInfo(email, password); 
-      if (user) {
-        setUser({ email: user.email, isAdmin: Boolean(user.isadmin ?? user.isAdmin) });
-        setLoginStatus('success');
-        setView('dashboard');
-      } else {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
         setLoginStatus('error');
+        return;
       }
+
+      const user = await res.json();
+      setUser({ email: user.email, isAdmin: Boolean(user.isadmin ?? user.isAdmin) });
+      setLoginStatus('success');
+      setView('dashboard');
     } catch (error) {
       console.log("Errore durante il login:", error);
       setLoginStatus('error');

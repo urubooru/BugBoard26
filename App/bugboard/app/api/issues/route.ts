@@ -27,7 +27,7 @@ export async function GET() {
     tagsByIssue.set(tag.issue, list);
   }
 
-  //
+  //crea lista issue con anche le etichette associate
   const issuesWithTags = issues.map((issue: any) => ({
     issueid : issue.issueid,
     titolo: issue.titolo,
