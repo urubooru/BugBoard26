@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-
+/*Il css è molto autoesplicativo, da notare che viene usato anche tailwindcss per molte definizioni
+e aiuti*/
 
 :root {
   --background: #003a6a;
@@ -27,6 +28,14 @@ form {
   border-radius: 5px;
 }
 
+input{
+  border: 1px solid black;
+}
+
+select{
+  border: 1px solid black;
+}
+
 form input {
   padding: 10px;
   margin: 10px;
@@ -43,4 +52,35 @@ button{
   border-radius: 5px;
   cursor: pointer;
   margin: 10px;
+}
+
+form a {
+  color: lightslategray;
+  text-decoration: underline;
+}
+
+.issues-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.issue-card {
+  background-color: bisque;
+  color: black;
+  padding: 40px;
+  border-radius: 5px;
+  border-color:black;
+  border-width: 2px;
+  width: 200px;
+  text-align: left;
+}
+
+main {
+  background-color: #F5F5F5;
+  color: black; 
+  padding:20px;
+  border-radius: 20px;;
 }
