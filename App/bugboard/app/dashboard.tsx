@@ -17,7 +17,7 @@ type DashboardProps = {
   isGuest: boolean;
 };
 
-export default function Dashboard({ user, isGuest }: DashboardProps) {
+export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
   //react states, hanno un valore e una funzione set di base
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,15 +123,88 @@ export default function Dashboard({ user, isGuest }: DashboardProps) {
         setUserMessage('');
       }, 1000);
     } catch (error) {
+      console.log("Errore: ", error);
       setUserMessageType('error');
       setUserMessage('Errore di rete durante la creazione utente');
+    }
+  };
+
+  //states per gestione di visibilità e creazione issue
+  const [showAddIssue, setShowAddIssue] = useState(false);
+  const [newIssueTitolo, setNewIssueTitolo] = useState('');
+  const [newIssueDescrizione, setNewIssueDescrizione] = useState('');
+  const [newIssueTipo, setNewIssueTipo] = useState('bug');
+  //const [newIssueStato, setNewIssueStato] = useState('todo'); non serve, sempre todo
+  const [newIssuePriority, setNewIssuePriority] = useState(0);
+  const [newIssueImageurl, setNewIssueImageurl] = useState('');
+  const [newIssueEtichette, setNewIssueEtichette] = useState('');
+  const [issueMessage, setIssueMessage] = useState('');
+  const [issueMessageType, setIssueMessageType] = useState<'success' | 'error'>('success');
+
+  //crea nuova issue, chiama endpoint /api/issues con POST
+  const handleAddIssueSubmit = async () => {
+    setIssueMessage('');
+
+    if (!newIssueTitolo || !newIssueDescrizione || !newIssueTipo) {
+      setIssueMessageType('error');
+      setIssueMessage(`Titolo, descrizione e tipo sono richiesti: ${newIssueTitolo}, ${newIssueDescrizione}, ${newIssueTipo}`);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/issues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titolo: newIssueTitolo,
+          descrizione: newIssueDescrizione,
+          tipo: newIssueTipo,
+          stato: 'todo',
+          priority: newIssuePriority,
+          imageurl: newIssueImageurl || null,
+          etichette: newIssueEtichette
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setIssueMessageType('error');
+        setIssueMessage(data?.error || 'Errore durante la creazione issue');
+        return;
+      }
+
+      //resetta le react state
+      setIssueMessageType('success');
+      setIssueMessage('Issue creata con successo');
+      setNewIssueTitolo('');
+      setNewIssueDescrizione('');
+      setNewIssueTipo('bug');
+      setNewIssuePriority(0);
+      setNewIssueImageurl('');
+      setNewIssueEtichette('');
+
+      // ricarica le issue
+      loadIssues();
+
+      setTimeout(() => {
+        setShowAddIssue(false);
+        setIssueMessage('');
+      }, 1000);
+    } catch (error) {
+      console.log("Errore: ", error);
+      setIssueMessageType('error');
+      setIssueMessage('Errore di rete durante la creazione issue');
     }
   };
 
   //funzione per esportazione in csv
   const exportCsv = () => {
     //definisce le colonne
-    const headers = ['issueid', 'titolo', 'descrizione', 'tipo', 'stato', 'priority', 'etichette'];
+    const headers = ['issueid', 'titolo', 'descrizione', 'tipo', 'stato', 'priority', 'imageurl', 'etichette'];
     //definisce le righe in base a quello che vede l'utente a schermo dopo un eventuale filtrazione
     const rows = filteredIssues.map((issue) => [
       issue.issueid,
@@ -140,6 +213,7 @@ export default function Dashboard({ user, isGuest }: DashboardProps) {
       issue.tipo,
       issue.stato,
       issue.priority,
+      issue.imageurl,
       issue.etichette?.join(', ') ?? '', //unisce tutte le etichette in una stringa
     ]);
 
@@ -159,7 +233,7 @@ export default function Dashboard({ user, isGuest }: DashboardProps) {
     link.download = 'issues.csv';
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
     URL.revokeObjectURL(url);
   };
 
@@ -169,9 +243,9 @@ export default function Dashboard({ user, isGuest }: DashboardProps) {
   //sono molti check per vedere se far visualizzare o no delle sezioni di dashboard
   //alcune volte usiamo stili speciali (magari per tenere i bottoni in una certa area dello schermo)
   return (
-    <main>
+    <main style={{maxWidth: '1000px'}}>
       <h1 style={ {fontSize: '150%'} }><strong>Dashboard</strong></h1>
-      <div>
+      <div >
         <h2><strong>Lista issues</strong></h2>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <select value={filterTipo} onChange={(e) => setFilterTipo(e.target.value)}>
@@ -211,12 +285,14 @@ export default function Dashboard({ user, isGuest }: DashboardProps) {
               <p>
                 <strong>Stato:</strong> {issue.stato}<br />
                 <strong>Tipo:</strong> {issue.tipo}<br/>
-                <strong>Priority:</strong> {issue.priority}<br/>
+                <strong>Priorità:</strong> {issue.priority}<br/>
                 {issue.etichette && issue.etichette.length > 0 && (
                   <>
                     <strong>Etichette:</strong> {issue.etichette.join(', ')}
                   </>
-                )}
+                )}<br/>
+                <strong>Immagine:</strong> {issue.imageurl ? 
+                <a href={issue.imageurl} style={{"color": "blue", "textDecoration": "underline"}} target="_blank">Link</a> : 'Nessuna immagine'}
               </p>
             </div>
           ))}
@@ -233,16 +309,16 @@ export default function Dashboard({ user, isGuest }: DashboardProps) {
 
       {!isGuest && (
         <div style={{ position: 'fixed', bottom: '1rem', right: '1rem'}}>
-          <button type="button" style={{ padding: '0.5rem 1rem' }} onClick={() => alert('Aggiungi issue')}>
+          <button type="button" style={{ padding: '0.5rem 1rem' }} onClick={() => setShowAddIssue(true)}>
             Aggiungi issue
           </button>
         </div>
       )}
 
       {showAddUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', 
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.3)', 
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'}}>
-          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '0.5rem', width: '320px', boxShadow: '0 10px 20px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '0.5rem', width: '320px', boxShadow: '0 10px 20px rgba(0, 0, 0, 0.2)' }}>
             <h2 style={{ marginTop: 0 }}>Aggiungi utente</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <h3>Email</h3>
@@ -258,6 +334,44 @@ export default function Dashboard({ user, isGuest }: DashboardProps) {
                   Annulla
                 </button>
                 <button type="button" onClick={handleAddUserSubmit} style={{ padding: '0.5rem 0.75rem' }}>
+                  Salva
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddIssue && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.3)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'}}>
+          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '0.5rem', width: '360px', boxShadow: '0 10px 20px rgb(0, 0, 0)' }}>
+            <h2 style={{ marginTop: 0 }}>Aggiungi issue</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <h3>Titolo</h3>
+              <input type="text" value={newIssueTitolo} onChange={(e) => setNewIssueTitolo(e.target.value)} />
+              <h3>Descrizione</h3>
+              <textarea style={{border: '1px solid black'}} value={newIssueDescrizione} rows={3} onChange={(e) => setNewIssueDescrizione(e.target.value)} />
+              <h3>Tipo</h3>
+              <select value={newIssueTipo} onChange={(e) => setNewIssueTipo(e.target.value)}>
+                <option value="bug">Bug</option>
+                <option value="feature">Feature</option>
+                <option value="question">Question</option>
+                <option value="documentation">Documentation</option>
+              </select>
+              <h3>Priorità</h3>
+              <input type="number" value={newIssuePriority} onChange={(e) => setNewIssuePriority(Number(e.target.value))} />
+              <h3>Image URL (opzionale)</h3>
+              <input type="text" value={newIssueImageurl} onChange={(e) => setNewIssueImageurl(e.target.value)} />
+              <h3>Etichette (separate da virgole) (opzionale)</h3>
+              <input type="text" value={newIssueEtichette} onChange={(e) => setNewIssueEtichette(e.target.value)} />
+
+              {issueMessage && <p style={{ color: issueMessageType === 'error' ? 'red' : 'green', margin: 0 }}>{issueMessage}</p>}
+              <div style={{ display: 'flex', justifyContent: 'space-evenly', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setShowAddIssue(false)} style={{ padding: '0.5rem 0.75rem' }}>
+                  Annulla
+                </button>
+                <button type="button" onClick={handleAddIssueSubmit} style={{ padding: '0.5rem 0.75rem' }}>
                   Salva
                 </button>
               </div>
