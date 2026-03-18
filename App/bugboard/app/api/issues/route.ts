@@ -26,6 +26,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: (err as Error).message }, { status: 401 });
   }
 
+  const method = request.method;
+  if (method !== 'GET') {
+    return NextResponse.json({ error: 'Metodo non supportato' }, { status: 405 });
+  }
+
   let issues: DbIssue[] = [];
   let etichette: DbEtichetta[] = [];
 
@@ -67,7 +72,7 @@ export async function GET(request: Request) {
 
 //API che gestisce POST su questo endpoint, crea una nuova issue
 export async function POST(request: Request) {
-  let devstringlol = "base";
+  //let devstringlol = "base";
   //try catch che usa JWT per verificare se l'utente è autenticatos
   try {
     try {
@@ -75,6 +80,11 @@ export async function POST(request: Request) {
     } catch (err) {
       return NextResponse.json({ error: (err as Error).message }, { status: 401 });
     }
+
+  const method = request.method;
+  if (method !== 'POST') {
+    return NextResponse.json({ error: 'Metodo non supportato' }, { status: 405 });
+  }
 
     const body = await request.json();
     const { titolo, descrizione, tipo, stato, priority, imageurl, etichette } = body;
@@ -99,7 +109,7 @@ export async function POST(request: Request) {
     //insert issue
     //devstringlol = `INSERT INTO Issue (issueid, titolo, descrizione, tipo, stato, priority, imageURL) VALUES (${nextId}, ${cleanTitolo}, ${cleanDescrizione}, ${cleanTipo}, ${stato}, ${cleanPriority}, ${cleanImage})`;
     await con`INSERT INTO Issue (issueid, titolo, descrizione, tipo, stato, priority, imageURL) VALUES (${nextId}, ${cleanTitolo}, ${cleanDescrizione}, ${cleanTipo}, ${stato}, ${cleanPriority}, ${cleanImage})`;
-    devstringlol = "issue inserita";
+    //devstringlol = "issue inserita";
 
     //se ci sono etichette allora splitta su virgole
     const labels: string[] = Array.isArray(etichette)
@@ -118,6 +128,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Errore durante la creazione issue:', error);
-    return NextResponse.json({ error: 'Impossibile creare issue ' + devstringlol }, { status: 500 });
+    return NextResponse.json({ error: 'Impossibile creare issue' }, { status: 500 });
   }
 }

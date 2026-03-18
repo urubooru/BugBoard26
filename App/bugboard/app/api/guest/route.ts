@@ -4,7 +4,6 @@ import jwt from 'jsonwebtoken';
 
 // endpoint per ottenere un token "guest" (no permessi admin)
 // non esiste un utente con mail "guest" quindi non dovrebbero esserci conflitti
-//
 export async function GET(testing: boolean = false) {
   if(!testing){
     const token = signJwt({ email: 'guest', isAdmin: false });

@@ -9,6 +9,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: (err as Error).message }, { status: 401 });
   }
 
+  const method = request.method;
+  if (method !== 'POST') {
+    return NextResponse.json({ error: 'Metodo non supportato' }, { status: 405 });
+  }
+
   try {
     const body = await request.json();
     const { issueid, stato } = body;
