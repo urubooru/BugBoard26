@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { dbConnection } from '../../dbConnection';
-import { requireAuth } from '../../../lib/auth';
+import { requireAuth } from '../../lib/auth';
 
 export async function POST(request: Request) {
   try {
     requireAuth(request);
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 401 });
+  }
+
+  const method = request.method;
+  if (method !== 'POST') {
+    return NextResponse.json({ error: 'Metodo non supportato' }, { status: 405 });
   }
 
   try {
