@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { dbConnection } from '../../dbConnection';
+import { signJwt } from '../../../lib/jwt';
 
-//API endpoint per gestire il login, gestisce anche SQLinjection e restituisce l'utente o l'errore in un documento json
+//API endpoint per gestire il login, gestisce anche SQLinjection e restituisce un JWT
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -23,7 +24,11 @@ export async function POST(request: Request) {
     }
 
     const user = users[0];
-    return NextResponse.json({ email: user.email, isAdmin: Boolean(user.isadmin ?? user.isAdmin) });
+    const isAdmin = Boolean(user.isadmin ?? user.isAdmin);
+    //creazione token che verrà ritornato al client
+    const token = signJwt({ email: user.email, isAdmin });
+
+    return NextResponse.json({ email: user.email, isAdmin, token });
   } catch (error) {
     console.error('Errore login:', error);
     return NextResponse.json({ error: 'Errore interno durante il login' }, { status: 500 });

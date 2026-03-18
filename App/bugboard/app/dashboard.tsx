@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 /*Dato che non abbiamo un effettivo bisogno di privatezza ne di metodi non creiamo delle classi in file separati*/
 type Issue = {
   issueid: number;
@@ -12,40 +12,52 @@ type Issue = {
   etichette?: string[];
 };
 
+//i prop sono componenti in react read only, passati da chi chiama in questo caso la funzione
 type DashboardProps = {
   user: { email: string; isAdmin: boolean } | null;
   isGuest: boolean;
+  token: string | null;
+  onLogout: () => void;
 };
 
-export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
+export default function Dashboard({ user, isGuest, token, onLogout }: Readonly<DashboardProps>) {
   //react states, hanno un valore e una funzione set di base
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   //loadIssues, tramite fetch chiama l'endpoint /api/issues e se va bene abbiamo i nostri issues
-  const loadIssues = () => {
+  //asyncrona con await su fatch per far funzionare al primo login(dava errore se non era async, 
+  // perché non aspettava la risposta e cercava di caricare prima le issue)
+  const loadIssues = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    fetch('/api/issues')
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `${token}`;
+    }
+
+    await fetch('/api/issues', { headers })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then((data: Issue[]) => {
+        data.sort((a, b) => a.issueid - b.issueid); //per ordinare tutti gli issue in base all'id
+        //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort
         setIssues(data);
       })
       .catch(() => {
         setError('Impossibile caricare le issue');
       })
       .finally(() => setLoading(false));
-  };
+  }, [token]);
 
-  //useEffect esegue la funzione quando viene caricata e si evita di avere errori tipo "caricamento e rendering nello stesso momento"
+  // useEffect esegue la funzione quando viene caricata (o quando cambia il token)
   useEffect(() => {
     loadIssues();
-  }, []);
+  }, [loadIssues]);
 
   //altri states per i filtri
   const [filterTipo, setFilterTipo] = useState<string>('');
@@ -90,9 +102,18 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
 
     try {
       //prova a chiamare l'endpoint con i dati del nuovo utente
+      //creiamo l'header, un record con (key,value) con 2 stringhe,
+      //il primo valore è content-type,
+      //il secondo è authorization se abbiamo un token, altrimenti non c'è
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers.Authorization = `${token}`;
+        //headers sarà { 'Content-Type': 'application/json', 'Authorization': '<token>' }
+      }
+
       const res = await fetch('/api/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           email: newUserEmail,
           password: newUserPassword,
@@ -141,6 +162,12 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
   const [issueMessage, setIssueMessage] = useState('');
   const [issueMessageType, setIssueMessageType] = useState<'success' | 'error'>('success');
 
+  //states per cambio stato issue (solo admin)
+  const [changeStateIssueId, setChangeStateIssueId] = useState<number | ''>('');
+  const [changeStateStatus, setChangeStateStatus] = useState<'todo' | 'inprogress' | 'done'>('todo');
+  const [changeStateMessage, setChangeStateMessage] = useState('');
+  const [changeStateMessageType, setChangeStateMessageType] = useState<'success' | 'error'>('success');
+
   //crea nuova issue, chiama endpoint /api/issues con POST
   const handleAddIssueSubmit = async () => {
     setIssueMessage('');
@@ -152,9 +179,14 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
     }
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers.Authorization = `${token}`;
+      }
+
       const res = await fetch('/api/issues', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           titolo: newIssueTitolo,
           descrizione: newIssueDescrizione,
@@ -197,7 +229,52 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
     } catch (error) {
       console.log("Errore: ", error);
       setIssueMessageType('error');
-      setIssueMessage('Errore di rete durante la creazione issue');
+      setIssueMessage('Errore durante la creazione issue');
+    }
+  };
+
+  //handleChange chiama /api/issue con POST
+  const handleChangeIssueState = async () => {
+    setChangeStateMessage('');
+
+    //no ID, errore
+    if (!changeStateIssueId) {
+      setChangeStateMessageType('error');
+      setChangeStateMessage('Seleziona un ID issue valido');
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers.Authorization = `${token}`;
+      }
+
+      //chiamata all'endpoint con issueId e stato
+      const res = await fetch('/api/issue', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ issueid: changeStateIssueId, stato: changeStateStatus }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setChangeStateMessageType('error');
+        setChangeStateMessage(data?.error || 'Errore durante il cambio di stato');
+        return;
+      }
+
+      setChangeStateMessageType('success');
+      setChangeStateMessage('Stato cambiato con successo');
+      setChangeStateIssueId('');
+      setChangeStateStatus('todo');
+
+      loadIssues();
+    } catch (error) {
+      console.log('Errore: ', error);
+      setChangeStateMessageType('error');
+      setChangeStateMessage('Errore durante il cambio di stato');
     }
   };
 
@@ -242,12 +319,21 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
 
   //sono molti check per vedere se far visualizzare o no delle sezioni di dashboard
   //alcune volte usiamo stili speciali (magari per tenere i bottoni in una certa area dello schermo)
+  //position sticky ci permette di vedere i 3 bottoni principali ovunque
   return (
-    <main style={{maxWidth: '1000px'}}>
+    <main style={{maxWidth: '1000px', position: 'relative'}}>
+      <div style={{ position: 'fixed', top: '1rem', right: '1rem'}}>
+        <button type="button" onClick={onLogout} style={{ position: 'sticky', padding: '0.5rem 1rem'}}>
+              🚪 | Logout
+        </button>
+      </div>
       <h1 style={ {fontSize: '150%'} }><strong>Dashboard</strong></h1>
-      <div >
+      <div>
         <h2><strong>Lista issues</strong></h2>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button type="button" onClick={() => setAppliedFilters({ tipo: filterTipo, stato: filterStato }) } style={{ padding: '0.4rem 0.75rem' }}>
+            🔍 | Filtra
+          </button>
           <select value={filterTipo} onChange={(e) => setFilterTipo(e.target.value)}>
             <option value="">Tutte le tipologie</option>
             {tipi.map((t) => (
@@ -264,13 +350,40 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
               </option>
             ))}
           </select>
-          <button type="button" onClick={() => setAppliedFilters({ tipo: filterTipo, stato: filterStato })}>
-            Filtra
-          </button>
+          
+          
+          {!isGuest && (
+            <>
+              <div style={{ width: '1000px' }}></div>
+              <button type="button" onClick={handleChangeIssueState} style={{ padding: '0.4rem 0.75rem' }}>
+                🔧 | Cambia stato
+              </button>
+              <select value={changeStateIssueId} onChange={(e) => setChangeStateIssueId(Number(e.target.value) || '')} style={{ padding: '0.4rem 0.75rem' }}>
+                <option value="">Seleziona issue</option>
+                {issues.map((issue) => (
+                  <option key={issue.issueid} value={issue.issueid}>
+                    {issue.issueid}
+                  </option>
+                ))}
+              </select>
+              
+              <select value={changeStateStatus} onChange={(e) => setChangeStateStatus(e.target.value as any)} style={{ padding: '0.4rem 0.75rem' }}>
+                <option value="todo">todo</option>
+                <option value="inprogress">inprogress</option>
+                <option value="done">done</option>
+              </select>
+              
+            </>
+          )}
           <button type="button" onClick={exportCsv} style={{ padding: '0.4rem 0.75rem' }}>
             Esporta CSV
           </button>
         </div>
+        {!isGuest && changeStateMessage && (
+          <p style={{ color: changeStateMessageType === 'error' ? 'red' : 'green', marginTop: '0.5rem' }}>
+            {changeStateMessage}
+          </p>
+        )}
       </div>
 
       {loading && <p>Loading issues…</p>}
@@ -280,12 +393,15 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
         <div className="issues-list">
           {filteredIssues.map((issue) => (
             <div key={issue.issueid} className="issue-card">
-              <h2>{issue.titolo}</h2>
+              <h2><strong>{issue.titolo}</strong></h2>
+              <p style={{ margin: '0.25rem 0' }}>
+                <strong>ID:</strong> {issue.issueid}<br/>
+              </p>
               <p>{issue.descrizione}</p>
               <p>
+                <strong>Priorità:</strong> {issue.priority}<br />
                 <strong>Stato:</strong> {issue.stato}<br />
                 <strong>Tipo:</strong> {issue.tipo}<br/>
-                <strong>Priorità:</strong> {issue.priority}<br/>
                 {issue.etichette && issue.etichette.length > 0 && (
                   <>
                     <strong>Etichette:</strong> {issue.etichette.join(', ')}
@@ -302,7 +418,7 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
       {isAdmin && (
         <div style={{ position: 'fixed', bottom: '1rem', left: '1rem'}}>
           <button type="button" style={{ padding: '0.5rem 1rem' }} onClick={() => setShowAddUser(true)}>
-            Aggiungi utente
+            👤 | Aggiungi utente
           </button>
         </div>
       )}
@@ -310,7 +426,7 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
       {!isGuest && (
         <div style={{ position: 'fixed', bottom: '1rem', right: '1rem'}}>
           <button type="button" style={{ padding: '0.5rem 1rem' }} onClick={() => setShowAddIssue(true)}>
-            Aggiungi issue
+            🔖 | Aggiungi issue
           </button>
         </div>
       )}
@@ -330,10 +446,10 @@ export default function Dashboard({ user, isGuest }: Readonly<DashboardProps>) {
 
               {userMessage && <p style={{ color: userMessageType === 'error' ? 'red' : 'green', margin: 0 }}>{userMessage}</p>}
               <div style={{ display: 'flex', justifyContent: 'space-evenly', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button type="button" onClick={() => setShowAddUser(false)} style={{ padding: '0.5rem 0.75rem' }}>
+                <button type="button" onClick={() => setShowAddUser(false)} style={{ position: 'sticky', padding: '0.5rem 0.75rem' }}>
                   Annulla
                 </button>
-                <button type="button" onClick={handleAddUserSubmit} style={{ padding: '0.5rem 0.75rem' }}>
+                <button type="button" onClick={handleAddUserSubmit} style={{ position: 'sticky', padding: '0.5rem 0.75rem' }}>
                   Salva
                 </button>
               </div>

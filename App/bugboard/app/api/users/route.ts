@@ -1,10 +1,22 @@
 import { NextResponse } from 'next/server';
 import { dbConnection } from '../../dbConnection';
+import { requireAdmin } from '../../../lib/auth';
 
 //API per gestire POST su questo endpoint, riceve request e se va tutto bene inserisce un utente
 //Gestisce anche attentamente la SQLinjection
 export async function POST(request: Request) {
   try {
+    //in questo caso serve che l'utente sia un admin
+    try {
+      requireAdmin(request);
+    } catch (err) {
+      const message = (err as Error).message;
+      return NextResponse.json(
+        { error: message },
+        { status: message.includes('Permessi') ? 403 : 401 }
+      );
+    }
+
     const body = await request.json();
     const { email, password, isAdmin } = body;
 
@@ -19,7 +31,7 @@ export async function POST(request: Request) {
     dbConnection.closeConn();
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Errore durante la creazione utente:', error);
     return NextResponse.json({ error: 'Impossibile creare utente' }, { status: 500 });
   }

@@ -1,10 +1,33 @@
 import { NextResponse } from 'next/server';
 import { dbConnection } from '../../dbConnection';
+import { requireAuth } from '../../../lib/auth';
+
+type DbIssue = {
+  issueid: number;
+  titolo: string;
+  descrizione: string;
+  tipo: string;
+  stato: string;
+  priority: number;
+  imageurl?: string | null;
+};
+
+type DbEtichetta = {
+  issue: number;
+  etichetta: string;
+};
 
 //API che gestisce GET su questo endpoint, restituisce tutte le issue
-export async function GET() {
-  let issues: any[] = [];
-  let etichette: any[] = [];
+export async function GET(request: Request) {
+  //try catch che usa JWT per verificare se l'utente è autenticato
+  try {
+    requireAuth(request);
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 401 });
+  }
+
+  let issues: DbIssue[] = [];
+  let etichette: DbEtichetta[] = [];
 
   try {
     const con = dbConnection.getConnection();
@@ -28,8 +51,8 @@ export async function GET() {
   }
 
   //crea lista issue con anche le etichette associate
-  const issuesWithTags = issues.map((issue: any) => ({
-    issueid : issue.issueid,
+  const issuesWithTags = issues.map((issue) => ({
+    issueid: issue.issueid,
     titolo: issue.titolo,
     descrizione: issue.descrizione,
     tipo: issue.tipo,
@@ -45,8 +68,14 @@ export async function GET() {
 //API che gestisce POST su questo endpoint, crea una nuova issue
 export async function POST(request: Request) {
   let devstringlol = "base";
+  //try catch che usa JWT per verificare se l'utente è autenticatos
   try {
-    
+    try {
+      requireAuth(request);
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 401 });
+    }
+
     const body = await request.json();
     const { titolo, descrizione, tipo, stato, priority, imageurl, etichette } = body;
 
@@ -56,8 +85,6 @@ export async function POST(request: Request) {
 
     const con = dbConnection.getConnection();
 
-    // onestamente non ho ben capito come mai si estrapoli direttamente il
-    // valore in questo modo, ma se funziona non tocco
     const res = await con`SELECT MAX(issueid) as maxid FROM Issue`;
     const nextId = (Number(res[0].maxid)) ? Number(res[0].maxid) + 1 : 1;
 
@@ -75,15 +102,13 @@ export async function POST(request: Request) {
     devstringlol = "issue inserita";
 
     //se ci sono etichette allora splitta su virgole
-    const labels = Array.isArray(etichette)
-      ? etichette.map((l: any) => String(l).split(',').filter(Boolean))
+    const labels: string[] = Array.isArray(etichette)
+      ? (etichette as unknown[])
+          .flatMap((l) => String(l).split(',').filter(Boolean))
       : [];
 
-    //gestione SQLinj etichette
-    let cleanLabels: string[] = [];
-    for(const label of labels) {
-      cleanLabels.push(String(label).split(';')[0].trim());
-    }
+    // gestione SQLinj etichette
+    const cleanLabels = labels.map((label) => String(label).split(';')[0].trim());
 
     for (const label of cleanLabels) {
       await con`INSERT INTO etichetta (issue, etichetta) VALUES (${nextId}, ${label})`;
