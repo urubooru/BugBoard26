@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbConnection } from '../../dbConnection';
+import { dbConnection } from '../../db/dbConnection';
 import { requireAdmin } from '../../lib/auth';
 
 //API per gestire POST su questo endpoint, riceve request e se va tutto bene inserisce un utente

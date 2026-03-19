@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbConnection } from '../../dbConnection';
+import { dbConnection } from '../../db/dbConnection';
 import { requireAuth } from '../../lib/auth';
 
 type DbIssue = {

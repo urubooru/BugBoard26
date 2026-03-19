@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbConnection } from '../../dbConnection';
+import { dbConnection } from '../../db/dbConnection';
 import { signJwt } from '../../lib/jwt';
 
 //API endpoint per gestire il login, gestisce anche SQLinjection e restituisce un JWT
