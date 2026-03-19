@@ -1,4 +1,6 @@
 import jwt from 'jsonwebtoken';
+//CLASSE WRAPPER DI JWT
+
 //https://www.npmjs.com/package/jsonwebtoken
 //definiamo il payload come mail e isAdmin
 //non contiene la password in quanto facilmente decodificiabile
