@@ -14,8 +14,10 @@ export class dbConnection {
 
   static async closeConn(){
     if(dbConnection.con) {
-      await dbConnection.con.end();
+      const tmp = dbConnection.con;
       dbConnection.con = null;
+      await tmp.end();
+      
     }
   }
 }

@@ -1,9 +1,6 @@
 # Official njs image
 FROM node:20-alpine
 
-# Install pgsql and sudo
-RUN apk add --no-cache postgresql postgresql-contrib sudo
-
 WORKDIR /app
 COPY . .
 RUN npm install
